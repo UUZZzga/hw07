@@ -7,8 +7,9 @@
 // 作业中有很多个问句，请通过注释回答问题，并改进其代码，以使其更快
 // 并行可以用 OpenMP 也可以用 TBB
 
+#include <emmintrin.h>
 #include <iostream>
-//#include <x86intrin.h>  // _mm 系列指令都来自这个头文件
+#include <x86intrin.h>  // _mm 系列指令都来自这个头文件
 //#include <xmmintrin.h>  // 如果上面那个不行，试试这个
 #include "ndarray.h"
 #include "wangsrng.h"
@@ -24,11 +25,17 @@ static void matrix_randomize(Matrix &out) {
     size_t ny = out.shape(1);
 
     // 这个循环为什么不够高效？如何优化？ 10 分
-#pragma omp parallel for collapse(2)
-    for (int x = 0; x < nx; x++) {
-        for (int y = 0; y < ny; y++) {
+#pragma omp parallel for
+    for (size_t y = 0; y < ny; y++) {
+        for (size_t x = 0; x < nx; x++) {
+            union Whatever {
+                int* int_type;
+                float* float_type;
+            } wa;
             float val = wangsrng(x, y).next_float();
-            out(x, y) = val;
+            // out(x, y) = val;
+            wa.float_type = &val;
+            _mm_stream_si32((int*) &out(x, y), *wa.int_type);
         }
     }
     TOCK(matrix_randomize);
@@ -42,8 +49,8 @@ static void matrix_transpose(Matrix &out, Matrix const &in) {
 
     // 这个循环为什么不够高效？如何优化？ 15 分
 #pragma omp parallel for collapse(2)
-    for (int x = 0; x < nx; x++) {
-        for (int y = 0; y < ny; y++) {
+    for (size_t x = 0; x < nx; x++) {
+        for (size_t y = 0; y < ny; y++) {
             out(y, x) = in(x, y);
         }
     }
@@ -63,10 +70,10 @@ static void matrix_multiply(Matrix &out, Matrix const &lhs, Matrix const &rhs) {
 
     // 这个循环为什么不够高效？如何优化？ 15 分
 #pragma omp parallel for collapse(2)
-    for (int y = 0; y < ny; y++) {
-        for (int x = 0; x < nx; x++) {
+    for (size_t y = 0; y < ny; y++) {
+        for (size_t x = 0; x < nx; x++) {
             out(x, y) = 0;  // 有没有必要手动初始化？ 5 分
-            for (int t = 0; t < nt; t++) {
+            for (size_t t = 0; t < nt; t++) {
                 out(x, y) += lhs(x, t) * rhs(t, y);
             }
         }
@@ -90,7 +97,7 @@ static float matrix_trace(Matrix const &in) {
     float res = 0;
     size_t nt = std::min(in.shape(0), in.shape(1));
 #pragma omp parallel for reduction(+:res)
-    for (int t = 0; t < nt; t++) {
+    for (size_t t = 0; t < nt; t++) {
         res += in(t, t);
     }
     TOCK(matrix_trace);

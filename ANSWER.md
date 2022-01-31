@@ -2,14 +2,16 @@
 
 ```
 这里贴改进前的运行结果。
-matrix_randomize: 100s
+matrix_randomize: 0.0010125s
+matrix_randomize: 0.0006555s
 ```
 
 # 改进后
 
 ```
 这里贴改进后的运行结果。
-matrix_randomize: 0.01s
+matrix_randomize: 0.0007717s
+matrix_randomize: 0.0003155s
 ```
 
 # 加速比

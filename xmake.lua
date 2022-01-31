@@ -39,14 +39,15 @@ if is_mode("release", "profile") then
     end
 
     -- 添加扩展指令集
-    add_vectorexts("sse2", "sse3", "ssse3", "mmx")
+    add_vectorexts("sse2", "sse3", "ssse3", "mmx", "avx")
 end
 
-add_requires("openmp")
+add_repositories("my-repo myrepo")
+add_requires("myopenmp")
 
 target("main")
     set_kind("binary")
     add_files("main.cpp")
     -- add_vectorexts("avx")
 
-    add_packages("openmp")
+    add_packages("myopenmp")

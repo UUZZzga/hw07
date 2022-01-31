@@ -10,10 +10,24 @@
 // https://stackoverflow.com/questions/12942548/making-stdvector-allocate-aligned-memory
 namespace detail {
     void* allocate_aligned_memory(size_t align, size_t size) {
+    #if __STDC_VERSION__ >= 201112L
         return std::aligned_alloc(align, size);
+    #elif _POSIX_VERSION >= 200112L
+        void *result;
+        if(posix_memalign(&result, align, size)){return nullptr;}
+        return result;
+    #elif _WIN32
+        return _aligned_malloc(size, align);
+    #endif
     }
     void deallocate_aligned_memory(void* ptr) noexcept {
+    #if __STDC_VERSION__ >= 201112L
         std::free(ptr);
+    #elif _WIN32
+        _aligned_free(ptr);
+    #else 
+        free(ptr);
+    #endif
     }
 }
 

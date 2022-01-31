@@ -11,7 +11,7 @@ class ndarray {
     static_assert(N > 0, "N cannot be 0");
     static_assert(std::is_same_v<std::remove_reference_t<std::remove_cv_t<T>>, T>, "T cannot be cvref");
 
-    using Dim = std::array<std::intptr_t, N>;
+    using Dim = std::array<std::size_t, N>;
     using Shape = std::array<std::size_t, N>;
 
     std::vector<T, AllocatorT> m_arr;
