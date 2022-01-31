@@ -1,7 +1,7 @@
 add_rules("mode.debug", "mode.release", "mode.profile")
 set_languages("cxx17")
 
-set_warnings("all", "error")
+-- set_warnings("all", "error")
 
 -- 如果当前编译模式是debug
 if is_mode("debug") then

@@ -1,22 +1,41 @@
 # 改进前
 
 ```
-这里贴改进前的运行结果。
-matrix_randomize: 0.0010125s
-matrix_randomize: 0.0006555s
+matrix_randomize: 2.08255s
+t=1: n=14848
+matrix_randomize: 1.41455s
+t=2: n=16384
+matrix_randomize: 1.78579s
+t=3: n=16896
+matrix_randomize: 1.83421s
+
+matrix_transpose: 1.48704s
+t=1: n=14848
+matrix_transpose: 0.953459s
+t=2: n=16384
+matrix_transpose: 1.14123s
+t=3: n=16896
+matrix_transpose: 1.24748s
 ```
 
 # 改进后
 
 ```
-这里贴改进后的运行结果。
-matrix_randomize: 0.0007717s
-matrix_randomize: 0.0003155s
+t=0: n=17920
+matrix_randomize: 0.0751787s
+t=1: n=14848
+matrix_randomize: 0.0831394s
+t=2: n=16384
+matrix_randomize: 0.0624153s
+t=3: n=16896
+matrix_randomize: 0.0673621s
+
+
 ```
 
 # 加速比
 
-matrix_randomize: 10000x
+matrix_randomize: 20x
 matrix_transpose: 10000x
 matrix_multiply: 10000x
 matrix_RtAR: 10000x

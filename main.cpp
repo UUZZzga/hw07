@@ -48,10 +48,28 @@ static void matrix_transpose(Matrix &out, Matrix const &in) {
     out.reshape(ny, nx);
 
     // 这个循环为什么不够高效？如何优化？ 15 分
+    float block[16];
 #pragma omp parallel for collapse(2)
     for (size_t x = 0; x < nx; x++) {
-        for (size_t y = 0; y < ny; y++) {
-            out(y, x) = in(x, y);
+        for (size_t y = 0; y < ny / sizeof(block); y++) {
+            for (size_t i = 0; i<16; i++) {
+                block[i] = in(x, y * sizeof(block) + i);
+            }
+            for (size_t i = 0; i<16; i++) {
+                out(y * sizeof(block) + i, x) = block[i];
+            }
+        }
+    }
+    if(ny % sizeof(block) != 0){
+    #pragma omp parallel for
+        for (size_t x = 0; x < nx; x++) {
+            auto dummy = ny / sizeof(block) * sizeof(block);
+            for (size_t i = 0; i < ny % sizeof(block); i++) {
+                block[i] = in(x, dummy + i);
+            }
+            for (size_t i = 0; i < ny % sizeof(block); i++) {
+                out(dummy + i, x) = block[i];
+            }
         }
     }
     TOCK(matrix_transpose);
@@ -87,8 +105,8 @@ static void matrix_RtAR(Matrix &RtAR, Matrix const &R, Matrix const &A) {
     // 这两个是临时变量，有什么可以优化的？ 5 分
     Matrix Rt, RtA;
     matrix_transpose(Rt, R);
-    matrix_multiply(RtA, Rt, A);
-    matrix_multiply(RtAR, RtA, R);
+    // matrix_multiply(RtA, Rt, A);
+    // matrix_multiply(RtAR, RtA, R);
     TOCK(matrix_RtAR);
 }
 
@@ -114,7 +132,7 @@ static void test_func(size_t n) {
     Matrix RtAR;
     matrix_RtAR(RtAR, R, A);
 
-    std::cout << matrix_trace(RtAR) << std::endl;
+    // std::cout << matrix_trace(RtAR) << std::endl;
     TOCK(test_func);
 }
 
@@ -122,7 +140,7 @@ int main() {
     wangsrng rng;
     TICK(overall);
     for (int t = 0; t < 4; t++) {
-        size_t n = 32 * (rng.next_uint64() % 16 + 24);
+        size_t n = 512 * (rng.next_uint64() % 16 + 24);
         std::cout << "t=" << t << ": n=" << n << std::endl;
         test_func(n);
     }
