@@ -6,17 +6,25 @@
 // 如能同时贴出 CPU 核心数量，缓存大小等就最好了（lscpu 命令）
 // 作业中有很多个问句，请通过注释回答问题，并改进其代码，以使其更快
 // 并行可以用 OpenMP 也可以用 TBB
-
+#include <cassert>
 #include <emmintrin.h>
 #include <iostream>
+#include <stdio.h>
+#include <cstring>
 #include <x86intrin.h>  // _mm 系列指令都来自这个头文件
-//#include <xmmintrin.h>  // 如果上面那个不行，试试这个
+#include <xmmintrin.h>  // 如果上面那个不行，试试这个
+#include "morton.h"
 #include "ndarray.h"
 #include "wangsrng.h"
 #include "ticktock.h"
 
+union Whatever {
+                int int_type;
+                float float_type;
+};
+
 // Matrix 是 YX 序的二维浮点数组：mat(x, y) = mat.data()[y * mat.shape(0) + x]
-using Matrix = ndarray<2, float>;
+using Matrix = ndarray<2, float, 0, 0, AlignedAllocator<float, 4096>>;
 // 注意：默认对齐到 64 字节，如需 4096 字节，请用 ndarray<2, float, AlignedAllocator<4096, float>>
 
 static void matrix_randomize(Matrix &out) {
@@ -28,14 +36,9 @@ static void matrix_randomize(Matrix &out) {
 #pragma omp parallel for
     for (size_t y = 0; y < ny; y++) {
         for (size_t x = 0; x < nx; x++) {
-            union Whatever {
-                int* int_type;
-                float* float_type;
-            } wa;
-            float val = wangsrng(x, y).next_float();
-            // out(x, y) = val;
-            wa.float_type = &val;
-            _mm_stream_si32((int*) &out(x, y), *wa.int_type);
+            Whatever wa;
+            wa.float_type = wangsrng(x, y).next_float();
+            _mm_stream_si32((int*) &out(x, y), wa.int_type);
         }
     }
     TOCK(matrix_randomize);
@@ -48,28 +51,36 @@ static void matrix_transpose(Matrix &out, Matrix const &in) {
     out.reshape(ny, nx);
 
     // 这个循环为什么不够高效？如何优化？ 15 分
-    float block[16];
-#pragma omp parallel for collapse(2)
-    for (size_t x = 0; x < nx; x++) {
-        for (size_t y = 0; y < ny / sizeof(block); y++) {
-            for (size_t i = 0; i<16; i++) {
-                block[i] = in(x, y * sizeof(block) + i);
-            }
-            for (size_t i = 0; i<16; i++) {
-                out(y * sizeof(block) + i, x) = block[i];
+
+    constexpr size_t blockSize = 64;
+#pragma omp parallel for
+    for (size_t mortonCode = 0; mortonCode < (ny / blockSize) * (nx / blockSize); mortonCode++) {
+        auto [xBase, yBase] = morton2d::decode(mortonCode);
+        xBase *= blockSize;
+        yBase *= blockSize;
+        if(xBase>= nx|| yBase>= ny){ continue; }
+        // assert(xBase < nx);
+        for (size_t x = xBase; x < xBase + blockSize; x++) {
+            for (size_t y = yBase; y < yBase + blockSize; y++) {
+                Whatever wa;
+                wa.float_type = in(x, y);
+                _mm_stream_si32((int *) &out(y, x), wa.int_type);
+                // out(y, x) = in(x, y);
             }
         }
     }
-    if(ny % sizeof(block) != 0){
-    #pragma omp parallel for
-        for (size_t x = 0; x < nx; x++) {
-            auto dummy = ny / sizeof(block) * sizeof(block);
-            for (size_t i = 0; i < ny % sizeof(block); i++) {
-                block[i] = in(x, dummy + i);
-            }
-            for (size_t i = 0; i < ny % sizeof(block); i++) {
-                out(dummy + i, x) = block[i];
-            }
+    TOCK(matrix_transpose);
+}
+
+static void matrix_transpose2(Matrix &out, Matrix const &in) {
+    TICK(matrix_transpose);
+    size_t nx = in.shape(0);
+    size_t ny = in.shape(1);
+    out.reshape(ny, nx);
+#pragma omp parallel for collapse(2)
+    for (size_t x = 0; x < nx; x++) {
+        for (size_t y = 0; y < ny; y++) {
+            out(y, x) = in(x, y);
         }
     }
     TOCK(matrix_transpose);
@@ -105,6 +116,10 @@ static void matrix_RtAR(Matrix &RtAR, Matrix const &R, Matrix const &A) {
     // 这两个是临时变量，有什么可以优化的？ 5 分
     Matrix Rt, RtA;
     matrix_transpose(Rt, R);
+
+    matrix_transpose2(RtA, Rt);
+    printf("cmp: %d\n", memcmp(RtA.data(), R.data(), sizeof(float) * sizeof (R.data())));
+
     // matrix_multiply(RtA, Rt, A);
     // matrix_multiply(RtAR, RtA, R);
     TOCK(matrix_RtAR);
